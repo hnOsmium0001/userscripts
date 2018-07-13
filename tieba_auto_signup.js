@@ -23,17 +23,17 @@
     //Main page
     if(href.indexOf('/home/main?') !== -1) {
         //TODO add button for start auto-sign up instead up directly do it on reload
-        
+
         console.log('Detected tieba main page, started sign all bars');
-        
+
         // show hidden fourms
         document.getElementsByClassName('j_show_more_forum')[0].click();
-        
+
         // get all fourms that the user followed && has not been signed up yet
         var allFourms = document.getElementsByClassName('u-f-item unsign');
-        allFourms.forEach(function(btn) {
-            btn.click();
-        });
+        for(i = 0; i < allFourms.length; i++) {
+            allFourms[i].click();
+        }
 
         return;
     }
@@ -44,7 +44,7 @@
         if(document.getElementsByClassName('signstar_signed')[0] === undefined) {
             document.getElementsByClassName('j_signbtn')[0].click(); // click the Sign Button
             console.log('Clicked sign button');
-            
+
             //WIP, close the window after done sign-up
             if(AUTO_SIGN_MODE) {
                 window.opener = null;
