@@ -14,18 +14,20 @@
 // @grant        GM_getResourceText
 // ==/UserScript==
 
-/**
- * Evaluate whether an element has a certain class prefix.
- */
-function hasClassPrefix(element, prefix) {
-    const classes = (element.getAttribute("class") || "").split();
-    return classes.some(x => x.startsWith(prefix));
-}
-
 (function () {
     'use strict';
 
     if (!renderMathInElement) throw "Katex did not load correctly!";
+
+    /**
+     * Evaluate whether an element has a certain class prefix.
+    */
+    function hasClassPrefix(element, prefix) {
+        if (!element.getAttribute) return false;
+
+        const classes = (element.getAttribute("class") || "").split();
+        return classes.some(x => x.startsWith(prefix));
+    }
 
     // Declare rendering options (see https://katex.org/docs/autorender.html#api for details)
     const options = {
