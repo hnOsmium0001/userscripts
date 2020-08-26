@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mathcord Reborn
 // @namespace    http://tampermonkey.net/
-// @version      1.3
+// @version      1.4
 // @description  Typeset equations in Discord messages.
 // @author       Till Hoffmann, hnOsmium0001
 // @license      MIT
@@ -39,6 +39,13 @@
             { left: "$", right: "$", display: false },
         ],
     };
+
+    // Align block LaTeX to the left for better viewing experience
+    GM_addStyle(`
+        .katex-html {
+            text-align: left !important;
+        }
+    `);
 
     // We need to download the CSS, modify any relative urls to be absolute, and inject the CSS
     const pattern = /url\((.*?)\)/gi;
