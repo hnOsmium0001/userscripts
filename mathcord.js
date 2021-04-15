@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mathcord Reborn
 // @namespace    http://tampermonkey.net/
-// @version      1.4
+// @version      1.5
 // @description  Typeset equations in Discord messages.
 // @author       Till Hoffmann, hnOsmium0001
 // @license      MIT
@@ -110,8 +110,8 @@
     function updateFor_chatContent(added) {
         new ChildrenSelector(added)
             .andThenClass("messagesWrapper")
-            .andThenClass("scrollerWrap")
             .andThenClass("scroller")
+            .andThenClass("scrollerContent")
             .andThenClass("scrollerInner")
             .accept(
                 scroller => {
