@@ -115,8 +115,9 @@
             .andThenClass("scrollerInner")
             .accept(
                 scroller => {
+                  console.log("here")
                     for (const candidate of scroller.children) {
-                        if (candidate.tagName === "DIV" && hasClassPrefix(candidate, "message")) {
+                        if (hasClassPrefix(candidate, "chat-messages")) {
                             renderMathInElement(candidate, options);
                         }
                     }
@@ -132,16 +133,16 @@
         for (const mutation of mutations) {
             const target = mutation.target;
             // Respond to newly loaded messages
-            if (target.tagName === "DIV" && hasClassPrefix(target, "scroller")) {
+            if (hasClassPrefix(target, "scrollerInner")) {
                 // Iterate over all messages added to the scroller and typeset them
                 for (const added of mutation.addedNodes) {
-                    if (added.tagName === "DIV" && hasClassPrefix(added, "message")) {
+                    if (added.tagName === "LI" && hasClassPrefix(added, "chat-messages")) {
                         renderMathInElement(added, options);
                     }
                 }
             }
             // Respond to edited messages
-            else if (target.tagName === "DIV" && hasClassPrefix(target, "contents") &&
+            else if (hasClassPrefix(target, "contents") &&
                 hasClassPrefix(target.parentNode, "message")) {
                 for (const added of mutation.addedNodes) {
                     // Do not typeset the interactive edit container
@@ -153,16 +154,18 @@
                 }
             }
             // Respond to reloading cached messages
-            else if (target.tagName === "DIV" && hasClassPrefix(target, "content")) {
-                for (const added of mutation.addedNodes) {
-                    if (hasClassPrefix(added, "chatContent")) {
-                        // When switching between channels within a server, "chatContent" is added
-                        updateFor_chatContent(added);
-                    } else if (hasClassPrefix(added, "chat")) {
-                        // When switching between cached servers, "chat" is aded
-                        updateFor_chat(added);
-                    }
-                }
+            else if (hasClassPrefix(target, "message")) {
+                new ChildrenSelector(target)
+                    .andThenClass("contents")
+                    .andThenClass("message-content")
+                    .accept(
+                        messageContent => {
+                            renderMathInElement(messageContent, options);
+                        },
+                        () => {
+                            throw "Failed, TODO report bug";
+                        }
+                    );
             }
         }
     });
