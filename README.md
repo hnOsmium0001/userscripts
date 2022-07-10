@@ -1,2 +1,1 @@
-# MathCord
-A fork of Till Hoffmann's MathCord
+# hnOsmium0001's User Scripts
