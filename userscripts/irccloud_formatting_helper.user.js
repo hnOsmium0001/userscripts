@@ -6,25 +6,10 @@
 // @author       Steve Howard
 // @author       hnOsmium0001
 // @match        https://www.irccloud.com/*
-// @grant        GM_addStyle
+// @grant        none
 // ==/UserScript==
 
 'use strict';
-
-// Copied from .emojiclass from IRCloud's CSS soruce
-GM_addStyle(`
-body.theme-dusk .markdowncell {
-    box-shadow: none;
-    background-color: #1d4063;
-}
-body.theme-dusk .markdowncell {
-    color: #b0cce8;
-}
-body.theme-dusk .markdowncell:focus,
-body.theme-dusk .markdowncell:hover {
-    color: #ebf2f9;
-}
-`);
 
 /**
  * Parse a string formatted in (a subset of) Markdown and return a string with HTML format tags.
@@ -201,7 +186,10 @@ function createMessagePreview() {
  */
 function createMarkdownCell() {
     const o = document.createElement('div');
-    o.classList.add('markdowncell');
+    // Too lazy to write another class, just reuse the existing class for the emoji selector
+    // NOTE: this won't break the emojicell finder algorithm below, because that code runs only ever once per buffer
+    // TODO irccloud is registering clicking on this as a click on the emojicell button
+    o.classList.add('emojicell');
     o.id = `userscriptFormattingHelperMarkdownCell${cb().bid()}`;
     o.title = 'Current markdown state, "M" represents markdown, "T" represents plain text.';
 
@@ -210,7 +198,9 @@ function createMarkdownCell() {
     visual.innerText = gState.useMarkdownIndicator;
     o.appendChild(visual);
 
-    o.addEventListener('click', () => {
+    o.addEventListener('click', event => {
+        // Stop IRCloud's event handler for .emojicell getting this click, triggering the emoji selection menu
+        event.stopImmediatePropagation();
         gState.useMarkdown = !gState.useMarkdown;
         // ^^^ This will trigger the listener callback below:
     });
