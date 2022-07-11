@@ -7,15 +7,43 @@
 // @author       hnOsmium0001
 // @license      MIT
 // @match        https://www.irccloud.com/*
-// @grant        none
+// @grant        GM_addStyle
 // ==/UserScript==
 
-'use strict';
+GM_addStyle(`
+.userscriptIFH-messagePreview {
+}
+`);
 
 /**
- * Parse a string formatted in (a subset of) Markdown and return a string with HTML format tags.
+ * @param {string} str
+ * @returns {boolean}
+ */
+function isIrcMessageCommand(str) {
+    // All commands start with a single '/'
+    // Messages that has a slash at the beginning start with '//' (which gets collapsed to a '/' when sending)
+    return str.startsWith('/') && !str.startsWith('//');
+}
+
+/**
+ * @param {string} str
+ * @returns {boolean}
+ */
+function isIrcMessagePlain(str) {
+    return !isIrcMessageCommand(str);
+}
+
+/**
+ * @callback FormattingMapper
+ * @param {'bold' | 'italic' | 'underline' | 'strikethrough'} type
+ * @param {boolean} transition
+ * @returns {string}
+ */
+
+/**
+ * Parse a string formatted in (a subset of) Markdown and return a list of generated pieces.
  * @param {string} str 
- * @param {(type: 'bold' | 'italic' | 'underline' | 'strikethrough', transition: boolean) => string} formattingMapper
+ * @param {FormattingMapper} formattingMapper
  * @returns {string}
  */
 // TODO this currently allows mixing italics formatter '*text_'
@@ -152,15 +180,17 @@ function formatIrcControlCodes(str) {
 
 let gState = {
     _useMarkdown: true,
+    /** @type {Array<(oldValue: boolean) => void>} */
     _useMarkdownListeners: [],
 
     get useMarkdown() {
         return this._useMarkdown;
     },
     set useMarkdown(newValue) {
+        const oldValue = this._useMarkdown;
         this._useMarkdown = newValue;
         for (const listener of this._useMarkdownListeners) {
-            listener(newValue);
+            listener(oldValue);
         }
     },
 
@@ -174,24 +204,23 @@ let gState = {
 };
 
 /**
- * @returns {HTMLElement}
+ * @returns {HTMLDivElement}
  */
 function createMessagePreview() {
     const o = document.createElement('div');
-    o.style.whiteSpace = 'pre';
+    o.classList.add('userscriptIFH-messagePreview');
     return o;
 }
 
 /**
- * @returns {HTMLElement}
+ * @returns {HTMLDivElement}
  */
 function createMarkdownCell() {
     const o = document.createElement('div');
     // Too lazy to write another class, just reuse the existing class for the emoji selector
     // NOTE: this won't break the emojicell finder algorithm below, because that code runs only ever once per buffer
-    // TODO irccloud is registering clicking on this as a click on the emojicell button
     o.classList.add('emojicell');
-    o.id = `userscriptFormattingHelperMarkdownCell${cb().bid()}`;
+    o.id = `userscriptIFH-markdowncell${cb().bid()}`;
     o.title = 'Current markdown state, "M" represents markdown, "T" represents plain text.';
 
     const visual = document.createElement('i');
@@ -212,12 +241,22 @@ function createMarkdownCell() {
     return o;
 }
 
+/**
+ * @param {HTMLElement} elm 
+ */
+function clearElementChildren(elm) {
+    // Taken from https://stackoverflow.com/a/65413839
+    elm.replaceChildren();
+}
+
+
 function bindInputControls() {
     if (cb() == null) {
         return;
     }
 
     // Maintained by IRCCloud, a separate one per buffer
+    /** @type {HTMLTextAreaElement} */
     const inputBox = document.getElementById(`bufferInputView${cb().bid()}`);
 
     if (!inputBox.dataset.userscriptFormattingHelperRegistered) {
@@ -232,35 +271,28 @@ function bindInputControls() {
         const markdownCell = createMarkdownCell();
         emojiCell.before(markdownCell);
 
-        inputBox.addEventListener('input', () => {
-            if (gState.useMarkdown) {
-                const msg = inputBox.value;
-                const formattedMsg = formatMarkdownForBrowser(msg);
-                previewBox.innerHTML = formattedMsg;
+        const updatePreviewBoxCallback = () => {
+            const msg = inputBox.value;
+            if (gState.useMarkdown && isIrcMessagePlain(msg)) {
+                previewBox.innerHTML = formatMarkdownForBrowser(msg);
+            } else {
+                clearElementChildren(previewBox);
             }
-        }, false);
+        };
+
+        inputBox.addEventListener('input', updatePreviewBoxCallback);
+        gState.useMarkdownListeners.push(updatePreviewBoxCallback);
 
         inputBox.addEventListener('keydown', event => {
-            if (gState.useMarkdown && event.key === 'Enter') {
-                const msg = inputBox.value;
-                const formattedMsg = formatIrcControlCodes(msg);
-                inputBox.value = formattedMsg;
-                previewBox.innerHTML = '';
+            const msg = inputBox.value;
+            if (event.key === 'Enter' &&
+                gState.useMarkdown && isIrcMessagePlain(msg))
+            {
+                // Hijack the input box content to be what IRC should receive, just before it's sent by IRCCloud's logic
+                inputBox.value = formatIrcControlCodes(msg);
+                clearElementChildren(previewBox);
             }
         });
-
-        gState.useMarkdownListeners.push(useMarkdown => {
-            if (useMarkdown) {
-                const msg = inputBox.value;
-                const formattedMsg = formatMarkdownForBrowser(msg);
-                previewBox.innerHTML = formattedMsg;
-            } else {
-                // Clear content, https://stackoverflow.com/a/3450726
-                while (previewBox.firstChild) {
-                    previewBox.removeChild(previewBox.firstChild);
-                }
-            }
-        })
     }
 }
 
@@ -269,15 +301,15 @@ function init() {
 
 (function checkSession() {
     // Taken from https://github.com/dogancelik/irccloud-sws/blob/6836cac008/src/send_with_style.user.js#L394-L406
-    if (window.hasOwnProperty('SESSION')) {
-        window.SESSION.bind('init', () => {
+    if (unsafeWindow.hasOwnProperty('SESSION')) {
+        unsafeWindow.SESSION.bind('init', () => {
             init();
 
             // For the initially open channel
             bindInputControls();
 
             // For switching channels later (channel == "buffer")
-            window.SESSION.buffers.on('doneSelected', () => {
+            unsafeWindow.SESSION.buffers.on('doneSelected', () => {
                 bindInputControls();
             });
         });

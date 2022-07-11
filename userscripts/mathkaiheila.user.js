@@ -4,6 +4,7 @@
 // @version      1.0
 // @description  Typeset equations in Kaiheila messages.
 // @author       hnOsmium0001
+// @license      MIT
 // @match        https://kaiheila.cn/*
 // @resource     katexCSS https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.css
 // @require      https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.js

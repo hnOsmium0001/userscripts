@@ -3,7 +3,8 @@
 // @namespace    http://tampermonkey.net/
 // @version      1.5
 // @description  Typeset equations in Discord messages.
-// @author       Till Hoffmann, hnOsmium0001
+// @author       Till Hoffmann
+// @author       hnOsmium0001
 // @license      MIT
 // @match        https://discordapp.com/*
 // @match        https://discord.com/*
