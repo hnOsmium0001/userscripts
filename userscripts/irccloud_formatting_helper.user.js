@@ -5,6 +5,7 @@
 // @description  Utility to add formatting chars for IRCCloud
 // @author       Steve Howard
 // @author       hnOsmium0001
+// @license      MIT
 // @match        https://www.irccloud.com/*
 // @grant        none
 // ==/UserScript==
@@ -173,7 +174,7 @@ let gState = {
 };
 
 /**
- * @returns {Node}
+ * @returns {HTMLElement}
  */
 function createMessagePreview() {
     const o = document.createElement('div');
@@ -182,7 +183,7 @@ function createMessagePreview() {
 }
 
 /**
- * @returns {Node}
+ * @returns {HTMLElement}
  */
 function createMarkdownCell() {
     const o = document.createElement('div');
