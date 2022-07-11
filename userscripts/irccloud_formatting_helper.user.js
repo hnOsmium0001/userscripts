@@ -9,7 +9,6 @@
 // @grant        none
 // ==/UserScript==
 
-/* jshint -W097 */
 'use strict';
 
 /**
@@ -150,19 +149,67 @@ function formatIrcControlCodes(str) {
     return doFormat(str, (type, transition) => ircFormattingMap[type][transition]);
 }
 
+let gState = {
+    _useMarkdown: true,
+    _useMarkdownListeners: [],
+
+    get useMarkdown() {
+        return this._useMarkdown;
+    },
+    set useMarkdown(newValue) {
+        this._useMarkdown = newValue;
+        for (const listener of this._useMarkdownListeners) {
+            listener(newValue);
+        }
+    },
+
+    get useMarkdownListeners() {
+        return this._useMarkdownListeners;
+    },
+
+    get useMarkdownIndicator() {
+        return this._useMarkdown ? 'M' : 'T';
+    },
+};
+
 /**
- * @param {Node} msg
  * @returns {Node}
  */
-function createMessagePreview(msg) {
+function createMessagePreview() {
     const o = document.createElement('div');
-    // o.style.width = msg.style.width;
-    // o.style.height = msg.style.height;
     o.style.whiteSpace = 'pre';
     return o;
 }
 
-function bindTextarea() {
+/**
+ * @returns {Node}
+ */
+function createMarkdownCell() {
+    const o = document.createElement('div');
+    // Too lazy to write another class, just reuse the existing class for the emoji selector
+    // NOTE: this won't break the emojicell finder algorithm below, because that code runs only ever once per buffer
+    // TODO irccloud is registering clicking on this as a click on the emojicell button
+    o.classList.add('emojicell');
+    o.id = `userscriptFormattingHelperMarkdownCell${cb().bid()}`;
+    o.title = 'Current markdown state, "M" represents markdown, "T" represents plain text.';
+
+    const visual = document.createElement('i');
+    visual.classList.add('fa');
+    visual.innerText = gState.useMarkdownIndicator;
+    o.appendChild(visual);
+
+    o.addEventListener('click', () => {
+        gState.useMarkdown = !gState.useMarkdown;
+        // ^^^ This will trigger the listener callback below:
+    });
+    gState.useMarkdownListeners.push(() => {
+        visual.innerText = gState.useMarkdownIndicator;
+    })
+
+    return o;
+}
+
+function bindInputControls() {
     if (cb() == null) {
         return;
     }
@@ -170,26 +217,47 @@ function bindTextarea() {
     // Maintained by IRCCloud, a separate one per buffer
     const inputBox = document.getElementById(`bufferInputView${cb().bid()}`);
 
-    if (!inputBox.dataset.formattingHelperRegistered) {
-        inputBox.dataset.formattingHelperRegistered = true;
+    if (!inputBox.dataset.userscriptFormattingHelperRegistered) {
+        inputBox.dataset.userscriptFormattingHelperRegistered = true;
 
         const previewBox = createMessagePreview();
-        inputBox.parentElement.insertBefore(previewBox, inputBox.nextSibling);    
+        inputBox.after(previewBox);
+
+        // TODO is there a less hacky way to do this?
+        const cells = inputBox.parentElement.parentElement.parentElement;
+        const emojiCell = cells.getElementsByClassName('emojicell')[0];
+        const markdownCell = createMarkdownCell();
+        emojiCell.before(markdownCell);
 
         inputBox.addEventListener('input', () => {
-            const msg = inputBox.value;
-            const formattedMsg = formatMarkdownForBrowser(msg);
-            previewBox.innerHTML = formattedMsg;
+            if (gState.useMarkdown) {
+                const msg = inputBox.value;
+                const formattedMsg = formatMarkdownForBrowser(msg);
+                previewBox.innerHTML = formattedMsg;
+            }
         }, false);
 
-        inputBox.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
+        inputBox.addEventListener('keydown', event => {
+            if (gState.useMarkdown && event.key === 'Enter') {
                 const msg = inputBox.value;
                 const formattedMsg = formatIrcControlCodes(msg);
                 inputBox.value = formattedMsg;
                 previewBox.innerHTML = '';
             }
         });
+
+        gState.useMarkdownListeners.push(useMarkdown => {
+            if (useMarkdown) {
+                const msg = inputBox.value;
+                const formattedMsg = formatMarkdownForBrowser(msg);
+                previewBox.innerHTML = formattedMsg;
+            } else {
+                // Clear content, https://stackoverflow.com/a/3450726
+                while (previewBox.firstChild) {
+                    previewBox.removeChild(previewBox.firstChild);
+                }
+            }
+        })
     }
 }
 
@@ -203,11 +271,11 @@ function init() {
             init();
 
             // For the initially open channel
-            bindTextarea();
+            bindInputControls();
 
             // For switching channels later (channel == "buffer")
             window.SESSION.buffers.on('doneSelected', () => {
-                bindTextarea();
+                bindInputControls();
             });
         });
     } else {
