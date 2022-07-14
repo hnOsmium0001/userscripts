@@ -56,11 +56,27 @@ function removeArrayTail(array, start) {
  */
 function makeElementForFormattingSymbol(symbolText) {
     switch (symbolText) {
-        case '*': return document.createElement('i');
         case '**': return document.createElement('b');
+        case '*':
         case '_': return document.createElement('i');
         case '__': return document.createElement('u');
         case '~~': return document.createElement('del');
+        default: return null;
+    }
+}
+
+/**
+ * 
+ * @param {string} symbolText 
+ * @returns {string?}
+ */
+function makeIrcCodeForFormattingSymbol(symbolText) {
+    switch (symbolText) {
+        case '**': return '\x02';
+        case '*':
+        case '_': return '\x1d';
+        case '__': return '\x1f';
+        case '~~': return '\x1e';
         default: return null;
     }
 }
@@ -297,26 +313,14 @@ function formatMarkdownForHtml(str) {
         } else {
             // This is a text token, or an unpaired symbol token (which should be treated as text)
             const lastNode = nodeStack[nodeStack.length - 1];
-            // if (lastNode instanceof Text) {
-            //     lastNode.nodeValue += token.text;
-            // } else {
             const node = document.createTextNode(token.text);
 
-            // nodeStack.push(node);
             lastNode.appendChild(node);
-            // }
         }
     }
 
     return view;
 }
-
-const ircFormattingMap = {
-    'bold': { 'true': '\x02', 'false': '\x02' },
-    'italic': { 'true': '\x1d', 'false': '\x1d' },
-    'underline': { 'true': '\x1f', 'false': '\x1f' },
-    'strikethrough': { 'true': '\x1e', 'false': '\x1e' },
-};
 
 /**
  * 
@@ -327,7 +331,17 @@ function formatMarkdownForIrc(str) {
     const tokens = doFormatTokenization(str);
     doFormatMatchTokens(tokens);
 
-    // TODO
+    let message = '';
+    
+    for (const token of tokens) {
+        if (token.pairedSymbolIndex !== undefined) {
+            message += makeIrcCodeForFormattingSymbol(token.text);
+        } else {
+            message += token.text;
+        }
+    }
+
+    return message;
 }
 
 let gState = {
