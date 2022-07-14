@@ -16,6 +16,7 @@ GM_addStyle(`
 `);
 
 /**
+ * 
  * @param {string} str
  * @returns {boolean}
  */
@@ -26,6 +27,7 @@ function isIrcMessageCommand(str) {
 }
 
 /**
+ * 
  * @param {string} str
  * @returns {boolean}
  */
@@ -34,133 +36,279 @@ function isIrcMessagePlain(str) {
 }
 
 /**
- * @callback FormattingMapper
- * @param {'bold' | 'italic' | 'underline' | 'strikethrough'} type
- * @param {boolean} transition
- * @returns {string}
+ * Remove all elements after and including the start-th element in array.
+ * Does not perform bound checks.
+ * @template T
+ * @param {Array<T>} array
+ * @param {number} start
+ */
+function removeArrayTail(array, start) {
+    const count = array.length - start;
+    for (let i = 0; i < count; ++i) {
+        array.pop();
+    }
+}
+
+/**
+ * 
+ * @param {string} symbolText 
+ * @returns {HTMLElement?}
+ */
+function makeElementForFormattingSymbol(symbolText) {
+    switch (symbolText) {
+        case '*': return document.createElement('i');
+        case '**': return document.createElement('b');
+        case '_': return document.createElement('i');
+        case '__': return document.createElement('u');
+        case '~~': return document.createElement('del');
+        default: return null;
+    }
+}
+
+/**
+ * 
+ * @typedef {'text' | 'symbol'} TokenType
  */
 
 /**
- * Parse a string formatted in (a subset of) Markdown and return a list of generated pieces.
- * @param {string} str 
- * @param {FormattingMapper} formattingMapper
- * @returns {string}
+ * 
+ * @typedef {Object} Token
+ * @property {string} text
+ * @property {TokenType} type
+ * @property {number} index
+ * @property {number | undefined} pairedSymbolIndex Used interally by parser.
  */
-// TODO this currently allows mixing italics formatter '*text_'
-function doFormat(str, formattingMapper) {
-    let bold = false;
-    let italic = false;
-    let strikethrough = false;
-    let underline = false;
 
-    // An array of strings, which may contain text directly 'test' or formatting tags '<b>', '</b>', etc.
-    let resultPieces = [];
-
+/**
+ * 
+ * @param {string} str
+ * @returns {Token[]}
+ */
+function doFormatTokenization(str) {
+    // Current non-symbol token in [anchor,cursor)
     let anchor = 0; // Range begin
     let cursor = 0; // Range end
 
+    /** @type {Token[]} */
+    let tokens = [];
+
+    let isEscaping = false;
+
     /**
-     * @param {number} advance 
+     * 
+     * @param {string} text 
      */
-    function pushTextChunk(advance) {
-        const length = cursor - anchor;
-        if (length > 0) {
-            resultPieces.push(str.substring(anchor, cursor));
+    function appendToLastTextToken(text) {
+        if (tokens.length >= 1) {
+            const lastToken = tokens[tokens.length - 1];
+            if (lastToken.type == 'text') {
+                lastToken.text += text;
+                return;
+            }
         }
 
-        anchor = cursor + advance;
-        // This is taken care of at the end of loop body
-        /* cursor += advance */
+        // Can't append, insert a new text token
+        tokens.push({
+            text: text,
+            type: 'text',
+            index: tokens.length,
+        });
     }
 
-    // We don't need to handle surrogate pairs, as long as we transparently keep them intact after the transformation
+    function tryPushTextRange() {
+        let myCursor = cursor;
+        let myAnchor = anchor;
+        // If we have an escape sequence, don't include the '\' before current symbol
+        if (isEscaping) {
+            myCursor -= 1;
+        }
+        if (myCursor - myAnchor > 0) {
+            appendToLastTextToken(str.substring(myAnchor, myCursor));
+        }
+    }
+
+    /**
+     * 
+     * @param {string} symbolText 
+     */
+    function tryPushSymbol(symbolText) {
+        if (isEscaping) {
+            isEscaping = false;
+            appendToLastTextToken(symbolText);
+        } else {
+            tokens.push({
+                text: symbolText,
+                type: 'symbol',
+                index: tokens.length,
+            });
+        }
+    }
+
     while (cursor < str.length) {
         // The number after 'c' represents the number of lookahead characters
         let c0 = str[cursor + 0];
         let c1 = (cursor < (str.length - 1)) ? str[cursor + 1] : '\0';
 
-        // Number of characters we advanced this pass
         let advance;
         let matchedControl = false;
 
         if (c0 == '*') {
             if (c1 == '*') {
                 // **text**
-                bold = !bold;
-
                 advance = 2;
-                matchedControl = true;
-
-                pushTextChunk(advance);
-                resultPieces.push(formattingMapper('bold', bold));
+                matchedControl = true;;
+                tryPushTextRange();
+                tryPushSymbol('**');
             } else {
                 // *text*
-                italic = !italic;
-
                 advance = 1;
                 matchedControl = true;
-
-                pushTextChunk(advance);
-                resultPieces.push(formattingMapper('italic', italic));
+                tryPushTextRange();
+                tryPushSymbol('*');
             }
         } else if (c0 == '_') {
             if (c1 == '_') {
                 // __text__
-                underline = !underline;
-
                 advance = 2;
                 matchedControl = true;
-
-                pushTextChunk(advance);
-                resultPieces.push(formattingMapper('underline', underline));
+                tryPushTextRange();
+                tryPushSymbol('__');
             } else {
                 // _text_
-                italic = !italic;
-
                 advance = 1;
                 matchedControl = true;
-
-                pushTextChunk(advance);
-                resultPieces.push(formattingMapper('italic', italic));
+                tryPushTextRange();
+                tryPushSymbol('_');
             }
         } else if (c0 == '~' && c1 == '~') {
             // ~~text~~
-            strikethrough = !strikethrough;
-
             advance = 2;
             matchedControl = true;
+            tryPushTextRange();
+            tryPushSymbol('~~');
+        } else if (c0 == '\\') {
+            // Input: text \\*symbol*
+            // ^^^ results in the double slash gets treated as a single slash vvv
+            // Output: text \<i>symbol</i>
 
-            pushTextChunk(advance);
-            resultPieces.push(formattingMapper('strikethrough', strikethrough));
+            advance = 1;
+            if (isEscaping) {
+                isEscaping = false;
+
+                // Start a new text chunk after this '\' character
+                matchedControl = true;
+
+                tryPushTextRange();
+            } else {
+                isEscaping = true;
+            }
         } else {
             // We didn't match anything
             advance = 1;
-            matchedControl = false;
+
+            // Treat backslash as a normal character, if something like '\text' appeared
+            if (isEscaping) {
+                isEscaping = false;
+            }
         }
 
         cursor += advance;
+        if (matchedControl) {
+            anchor = /* The updated */ cursor;
+        }
     }
 
-    // Push everything else, if there is any
-    cursor = str.length;
-    pushTextChunk(0);
+    tryPushTextRange();
 
-    return resultPieces.join('');
+    return tokens;
 }
 
-const browserFormattingMap = {
-    'bold': { 'true': '<b>', 'false': '</b>' },
-    'italic': { 'true': '<i>', 'false': '</i>' },
-    'underline': { 'true': '<u>', 'false': '</u>' },
-    'strikethrough': { 'true': '<del>', 'false': '</del>' },
-};
+/**
+ * 
+ * @param {Token[]} tokens 
+ */
+function doFormatMatchTokens(tokens) {
+    /** @type {Token[]} */
+    let stack = [];
+
+    for (let i = 0; i < tokens.length; ++i) {
+        const token = tokens[i];
+
+        if (token.type == 'symbol') {
+            searchStack: {
+                // Scan the stack for matching controls
+                for (let i = stack.length - 1; i >= 0; --i) {
+                    const stackFrame = stack[i];
+                    if (stackFrame.text == token.text) {
+                        // Case: found
+                        // - Discard all controls after this one, they are unmatched, e.g. **text__** gives a bold 'text__'
+                        // - This leaves the pairedSymbolIndex field as undefined, which implies that it's not consumed
+                        removeArrayTail(stack, i);
+
+                        stackFrame.pairedSymbolIndex = token.index;
+                        token.pairedSymbolIndex = stackFrame.index;
+
+                        break searchStack;
+                    }
+                }
+            }
+
+            // Case: not found
+            // - Push symbol into stack
+            stack.push(token);
+        }
+    }
+
+    // NOTE: everything else in stack is also unpaired
+}
 
 /**
+ * 
  * @param {string} str 
- * @returns {string}
+ * @returns {HTMLSpanElement}
  */
-function formatMarkdownForBrowser(str) {
-    return doFormat(str, (type, transition) => browserFormattingMap[type][transition]);
+function formatMarkdownForHtml(str) {
+    const tokens = doFormatTokenization(str);
+    doFormatMatchTokens(tokens);
+
+    const view = document.createElement('span');
+
+    /** @type {(HTMLElement | Text)[]} */
+    let nodeStack = [view];
+
+    for (let i = 0; i < tokens.length; ++i) {
+        const token = tokens[i];
+
+        if (token.pairedSymbolIndex !== undefined) {
+            // This is a paired symbol token
+            if (token.pairedSymbolIndex < i) {
+                // This is a closing symbol
+                while (nodeStack[nodeStack.length - 1] instanceof Text) {
+                    nodeStack.pop();
+                }
+                nodeStack.pop();
+            } else {
+                // This is an opening symbol
+                const lastNode = nodeStack[nodeStack.length - 1];
+                const element = makeElementForFormattingSymbol(token.text);
+                nodeStack.push(element);
+                lastNode.appendChild(element);
+            }
+        } else {
+            // This is a text token, or an unpaired symbol token (which should be treated as text)
+            const lastNode = nodeStack[nodeStack.length - 1];
+            // if (lastNode instanceof Text) {
+            //     lastNode.nodeValue += token.text;
+            // } else {
+            const node = document.createTextNode(token.text);
+
+            // nodeStack.push(node);
+            lastNode.appendChild(node);
+            // }
+        }
+    }
+
+    return view;
 }
 
 const ircFormattingMap = {
@@ -171,11 +319,15 @@ const ircFormattingMap = {
 };
 
 /**
+ * 
  * @param {string} str 
  * @returns {string}
  */
-function formatIrcControlCodes(str) {
-    return doFormat(str, (type, transition) => ircFormattingMap[type][transition]);
+function formatMarkdownForIrc(str) {
+    const tokens = doFormatTokenization(str);
+    doFormatMatchTokens(tokens);
+
+    // TODO
 }
 
 let gState = {
@@ -204,6 +356,7 @@ let gState = {
 };
 
 /**
+ * 
  * @returns {HTMLDivElement}
  */
 function createMessagePreview() {
@@ -213,6 +366,7 @@ function createMessagePreview() {
 }
 
 /**
+ * 
  * @returns {HTMLDivElement}
  */
 function createMarkdownCell() {
@@ -242,13 +396,13 @@ function createMarkdownCell() {
 }
 
 /**
+ * 
  * @param {HTMLElement} elm 
  */
 function clearElementChildren(elm) {
     // Taken from https://stackoverflow.com/a/65413839
     elm.replaceChildren();
 }
-
 
 function bindInputControls() {
     if (cb() == null) {
@@ -274,7 +428,8 @@ function bindInputControls() {
         const updatePreviewBoxCallback = () => {
             const msg = inputBox.value;
             if (gState.useMarkdown && isIrcMessagePlain(msg)) {
-                previewBox.innerHTML = formatMarkdownForBrowser(msg);
+                clearElementChildren(previewBox);
+                previewBox.appendChild(formatMarkdownForHtml(msg));
             } else {
                 clearElementChildren(previewBox);
             }
@@ -286,10 +441,9 @@ function bindInputControls() {
         inputBox.addEventListener('keydown', event => {
             const msg = inputBox.value;
             if (event.key === 'Enter' &&
-                gState.useMarkdown && isIrcMessagePlain(msg))
-            {
+                gState.useMarkdown && isIrcMessagePlain(msg)) {
                 // Hijack the input box content to be what IRC should receive, just before it's sent by IRCCloud's logic
-                inputBox.value = formatIrcControlCodes(msg);
+                inputBox.value = formatMarkdownForIrc(msg);
                 clearElementChildren(previewBox);
             }
         });
