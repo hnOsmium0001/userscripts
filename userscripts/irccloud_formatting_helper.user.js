@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         irccloud formatting helper 2
 // @namespace    http://github.com/hnOsmium0001
-// @version      2.1
+// @version      2.2
 // @description  Utility to add formatting chars for IRCCloud
 // @author       Steve Howard
 // @author       hnOsmium0001
