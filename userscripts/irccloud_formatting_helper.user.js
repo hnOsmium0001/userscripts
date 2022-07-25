@@ -13,6 +13,10 @@
 GM_addStyle(`
 .userscriptIFH-messagePreview {
 }
+
+.fa-markdown-btn {
+    user-select: none;
+}
 `);
 
 /**
@@ -392,7 +396,7 @@ function createMarkdownCell() {
     o.title = 'Current markdown state, "M" represents markdown, "T" represents plain text.';
 
     const visual = document.createElement('i');
-    visual.classList.add('fa');
+    visual.classList.add('fa', 'fa-markdown-btn');
     visual.innerText = gState.useMarkdownIndicator;
     o.appendChild(visual);
 
