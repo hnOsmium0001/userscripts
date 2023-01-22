@@ -271,11 +271,11 @@ function doFormatMatchTokens(tokens) {
                         break searchStack;
                     }
                 }
-            }
 
-            // Case: not found
-            // - Push symbol into stack
-            stack.push(token);
+                // Case: not found
+                // - Push symbol into stack
+                stack.push(token);
+            }
         }
     }
 
